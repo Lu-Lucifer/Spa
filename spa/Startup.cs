@@ -1,37 +1,39 @@
 using System;
+using System.IO;
+using System.Linq;
 using JavaScriptViewEngine;
 using LogDashboard;
 using LogDashboard.Authorization.Filters;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging;
-using NLog.Extensions.Logging;
+using Newtonsoft.Json.Serialization;
 using spa.Controller;
 using spa.Filter;
-using IHostingEnvironment = Microsoft.AspNetCore.Hosting.IHostingEnvironment;
+using spa.JavaScriptViewEngine.Utils;
 
 namespace spa
 {
     public class Startup
     {
-        private readonly IConfiguration _configuration;
 
         public Startup(IConfiguration configuration)
         {
-            _configuration = configuration;
+            ConfigHelper._configuration = configuration;
         }
 
         public void ConfigureServices(IServiceCollection services)
         {
-
+            //采用开源的logger查看组件查看本地日志文件
             services.AddLogDashboard(opt =>
             {
-                var name = Environment.GetEnvironmentVariable("BasicAuth_Name");
-                var pwd = Environment.GetEnvironmentVariable("BasicAuth_Pwd");
-                var localUserName =  string.IsNullOrEmpty(name)? _configuration["BasicAuth:Name"]: name;
-                var localPassword = string.IsNullOrEmpty(pwd)? _configuration["BasicAuth:Password"]: pwd;
+                var localUserName = ConfigHelper.GetConfig("BasicAuth:Name") ;
+                var localPassword = ConfigHelper.GetConfig("BasicAuth:Pwd");
                 if (!string.IsNullOrEmpty(localUserName) && !string.IsNullOrEmpty(localPassword))
                 {
                     opt.AddAuthorizationFilter(new LogDashboardBasicAuthFilter(localUserName, localPassword));
@@ -44,46 +46,56 @@ namespace spa
                 builder.UseSingletonEngineFactory();
             });
 
+           
+            services.AddCors(o => o.AddPolicy("Any", r =>
+            {
+                r.AllowAnyOrigin()
+                    .AllowAnyMethod()
+                    .AllowAnyHeader();
+            }));
+
+            services.AddRazorPages().AddNewtonsoftJson(options =>
+                options.SerializerSettings.ContractResolver =
+                    new DefaultContractResolver());
+
+            services.AddHttpContextAccessor();
+
             services.AddScoped<BasicAuthFilter>();
-            services.AddMvc();
         }
 
 
-
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory logging)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, ILoggerFactory logging)
         {
 
-            #region NLOG
+            ConfigHelper.ContentRootPath = env.ContentRootPath;
+            ConfigHelper.WebRootPath = env.WebRootPath;
+            if (string.IsNullOrEmpty(ConfigHelper.WebRootPath))
+            {
+                ConfigHelper.WebRootPath = Path.Combine(ConfigHelper.ContentRootPath, "wwwroot");
+            }
 
-            NLog.LogManager.LoadConfiguration("nlog.config");
-            logging.AddNLog();
-
-            #endregion
-
+            ConfigHelper.BackupPath = Path.Combine(env.ContentRootPath, "backup");
+#if DEBUG
             app.UseDeveloperExceptionPage();
+#endif
 
-            app.UseWhen(
-                c => c.Request.Path.Value.ToLower().EndsWith("appsettings.json") || c.Request.Path.Value.ToLower().EndsWith(".map"),
-                _ => _.Run((context => context.Response.WriteAsync("503"))));
-
+            //使用开源的本地日志组件
             app.UseLogDashboard();
 
-            app.UseWhen(
-                c =>
-                {
-                    var path = c.Request.Path.Value.ToLower();
-                    return path.EndsWith(".api") || path.EndsWith(".rollback") || path.EndsWith(".upload") || path.EndsWith(".delete") || path.EndsWith(".pathlist") || path.EndsWith(".reupload");
-                },
-                _ => _.UseMiddleware<ApiMiddleware>());
+            app.UseSpa();
 
-            app.UseStaticFiles();
+            app.UseRouting();
 
-            app.UseJsEngine();
+            app.UseCors();
 
-            app.UseMvc(routes =>
+            app.UseEndpoints(endpoints =>
             {
-                routes.MapRoute("Admin", "Admin/{*url}", defaults: new { controller = "Home", action = "Admin" });
-                routes.MapRoute("Spa", "{*url}", defaults: new { controller = "Home", action = "Index" });
+                endpoints.MapControllers();
+                endpoints.MapRazorPages();
+                endpoints.MapControllerRoute(
+                    name: "Spa",
+                    pattern: "{*url}", defaults: new { controller = "Home", action = "Index" });
+
             });
 
         }

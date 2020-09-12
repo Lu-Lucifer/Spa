@@ -5,3 +5,6 @@ obj/
 backup/
 spa/spa.csproj.user
 .vs/
+*.pubxml
+*.user
+spa/AntDeploy.json

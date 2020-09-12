@@ -16,6 +16,7 @@ using Newtonsoft.Json.Linq;
 using NLog;
 using RazorLight;
 using spa.Models;
+using spa.Plugins;
 
 namespace JavaScriptViewEngine
 {
@@ -28,7 +29,7 @@ namespace JavaScriptViewEngine
     {
         private readonly RazorRenderEngine RazorRenderEngine;
 
-        public RazorEngineBuilder(Microsoft.AspNetCore.Hosting.IHostingEnvironment hostingEnvironment, IOptions<RazorEngineOption> options)
+        public RazorEngineBuilder(IWebHostEnvironment hostingEnvironment, IOptions<RazorEngineOption> options)
         {
             RazorRenderEngine = new RazorRenderEngine(hostingEnvironment);
         }
@@ -41,7 +42,7 @@ namespace JavaScriptViewEngine
 
     public class RazorRenderEngine : IRenderEngine
     {
-        private readonly IHostingEnvironment _hostingEnvironment;
+        private readonly IWebHostEnvironment _hostingEnvironment;
         private readonly RazorLightEngine _engine;
         private static readonly Logger logger;
 
@@ -71,7 +72,7 @@ namespace JavaScriptViewEngine
             logger = LogManager.GetCurrentClassLogger();
         }
 
-        public RazorRenderEngine(IHostingEnvironment hostingEnvironment)
+        public RazorRenderEngine(IWebHostEnvironment hostingEnvironment)
         {
             _hostingEnvironment = hostingEnvironment;
             _engine = new RazorLightEngineBuilder()
@@ -139,7 +140,7 @@ namespace JavaScriptViewEngine
                 {
                     var exports = engine
                         .CommonJS()
-                        .RegisterInternalModule("server", typeof(Server))
+                        .RegisterInternalModule("server", typeof(PluginFactory))
                         .RunMain(jsFileContent.FilePath);
 
                     try
@@ -152,7 +153,7 @@ namespace JavaScriptViewEngine
                     }
                     catch (Exception e)
                     {
-                        logger.Error(e.ToString());
+                        logger.Error("excute server.js fail:"+e.Message);
                     }
                 }
 
