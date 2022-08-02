@@ -21,9 +21,11 @@ namespace spa.Models
     {
 
         public string Title { get; set; }
+        public bool Authed { get; set; }
         public string Time { get; set; }
         public DateTime DateTime { get; set; }
         public string Rollback { get; set; }
+        public string User { get; set; }
         public string RollbackPath {
             get
             {
@@ -31,5 +33,19 @@ namespace spa.Models
                 return Title + "-" + Rollback;
             }
         }
+    }
+
+    class SpaUser
+    {
+        public string LoginName { get; set; }
+        public bool Supper { get; set; }
+        public string Pwd { get; set; }
+    }
+
+    class SpaApiItem
+    {
+        public string api { get; set; }
+        public string name { get; set; }
+        public string url { get; set; }
     }
 }
